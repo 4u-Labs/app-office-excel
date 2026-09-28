@@ -3,3 +3,5 @@
 scratch/
 .env
 data/*.db
+*local.php
+api_key*.php

@@ -35,6 +35,38 @@ function handleGoogleAuth(): never
     $email = strtolower(trim($body['email'] ?? ''));
     $name = trim($body['name'] ?? '');
     $picture = trim($body['picture'] ?? '');
+    $accessToken = trim($body['access_token'] ?? '');
+
+    // Validação de token Google no servidor para evitar falsificação de e-mail / privilégios
+    if (!empty($accessToken)) {
+        $ch = curl_init('https://www.googleapis.com/oauth2/v3/userinfo');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $accessToken],
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_SSL_VERIFYPEER => true
+        ]);
+        $googleRes = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $googleRes) {
+            $googleData = json_decode($googleRes, true);
+            if (!empty($googleData['email'])) {
+                $email = strtolower(trim($googleData['email']));
+                $name = trim($googleData['name'] ?? ($googleData['given_name'] ?? $name));
+                $picture = trim($googleData['picture'] ?? $picture);
+            }
+        } else {
+            jsonError('Token de autenticação do Google inválido ou expirado.', 401);
+        }
+    }
+
+    $adminList = defined('ADMIN_EMAILS') ? ADMIN_EMAILS : ['fbr4g4@gmail.com', 'fb4g4@gmail.com'];
+    if (in_array($email, $adminList) && empty($accessToken)) {
+        jsonError('Autenticação segura obrigatória para contas administrativas.', 403);
+    }
+
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         jsonError('E-mail do Google inválido.');
@@ -101,11 +133,16 @@ function handleSync(): never
 
 function handleLogout(): never
 {
-    try {
-        $user = verifyAuthToken();
-        $pdo = Database::get();
-        $pdo->prepare('UPDATE users SET token = NULL WHERE id = ?')->execute([$user['id']]);
-    } catch (Exception $e) {}
+    $headers = getallheaders();
+    $auth    = $headers['Authorization'] ?? $headers['authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $token   = trim(str_replace('Bearer ', '', $auth));
+
+    if (!empty($token)) {
+        try {
+            $pdo = Database::get();
+            $pdo->prepare('UPDATE users SET token = NULL WHERE token = ?')->execute([$token]);
+        } catch (Throwable $e) {}
+    }
 
     jsonResponse(['success' => true, 'message' => 'Desconectado com sucesso.']);
 }

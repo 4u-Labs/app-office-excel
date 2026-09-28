@@ -13,9 +13,10 @@ $assetVersion = time();
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/google-auth.js?v=<?= $assetVersion ?>"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="js/excel-ai.js?v=<?= $assetVersion ?>"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        * { font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, Tahoma, sans-serif; }
         
         :root {
             --bg-primary: #ffffff;
@@ -366,6 +367,13 @@ $assetVersion = time();
         <input type="text" id="fileName" value="Pasta1" class="bg-transparent border-b border-white/50 px-2 py-1 text-sm focus:outline-none focus:border-white">
         <div class="flex-1"></div>
         <div class="flex items-center gap-2 text-sm">
+            <button onclick="ExcelAi.openGenerateSheetModal()" class="bg-emerald-800/90 hover:bg-emerald-700 px-2.5 py-1 rounded text-white font-bold flex items-center gap-1 border border-emerald-400/40 shadow-sm cursor-pointer" data-i18n="btn_ai_sheet" title="Criar Planilha Completa com Inteligência Artificial">
+                <span>🪄</span> <span data-i18n="btn_ai_sheet_txt">Planilha c/ IA</span>
+            </button>
+            <button onclick="ExcelAi.openAnalyzeModal()" class="bg-emerald-800/90 hover:bg-emerald-700 px-2.5 py-1 rounded text-white font-bold flex items-center gap-1 border border-emerald-400/40 shadow-sm cursor-pointer" data-i18n="btn_ai_analyze" title="Analisar Dados e Gerar Diagnóstico com IA">
+                <span>💡</span> <span data-i18n="btn_ai_analyze_txt">Analisar Dados</span>
+            </button>
+            <div class="h-4 w-px bg-white/30 mx-0.5"></div>
             <button onclick="showFindReplace()" class="hover:bg-white/20 px-3 py-1 rounded" data-i18n="btn_find" data-i18n-title="tip_find" title="Buscar (Ctrl+F)">🔍 Buscar</button>
             <button onclick="showChartModal()" class="hover:bg-white/20 px-3 py-1 rounded" data-i18n="btn_chart">📊 Gráfico</button>
             <button onclick="importCSV()" class="hover:bg-white/20 px-3 py-1 rounded" data-i18n="btn_import">📁 Importar</button>
@@ -502,8 +510,11 @@ $assetVersion = time();
     <!-- Formula Bar -->
     <div class="toolbar-section px-2 py-1 flex items-center gap-2 no-print">
         <div id="cellReference" class="w-20 text-center border rounded px-2 py-1 text-sm font-medium">A1</div>
-        <div class="text-gray-400">fx</div>
+        <div class="text-gray-400 font-bold">fx</div>
         <input type="text" id="formulaBar" class="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#217346]" placeholder="Digite um valor ou fórmula" data-i18n-placeholder="formula_placeholder">
+        <button onclick="ExcelAi.openFormulaModal()" class="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded shadow-sm flex items-center gap-1 transition-all cursor-pointer flex-shrink-0" title="Gerar ou Explicar Fórmula com Inteligência Artificial" data-i18n-title="tip_ai_formula">
+            <span>✨</span> <span data-i18n="btn_ai_formula">IA Fórmula</span>
+        </button>
     </div>
 
     <!-- Spreadsheet -->
@@ -558,6 +569,10 @@ $assetVersion = time();
                 default_sheet_name: "Planilha1",
                 btn_find: "🔍 Buscar",
                 tip_find: "Buscar (Ctrl+F)",
+                btn_ai_sheet_txt: "Planilha c/ IA",
+                btn_ai_analyze_txt: "Analisar Dados",
+                btn_ai_formula: "IA Fórmula",
+                tip_ai_formula: "Gerar ou Explicar Fórmula com Inteligência Artificial",
                 btn_chart: "📊 Gráfico",
                 btn_import: "📁 Importar",
                 btn_export: "💾 Exportar",
@@ -665,6 +680,10 @@ $assetVersion = time();
                 default_sheet_name: "Sheet1",
                 btn_find: "🔍 Find",
                 tip_find: "Find (Ctrl+F)",
+                btn_ai_sheet_txt: "AI Sheet",
+                btn_ai_analyze_txt: "Analyze Data",
+                btn_ai_formula: "AI Formula",
+                tip_ai_formula: "Generate or Explain Formula with Artificial Intelligence",
                 btn_chart: "📊 Chart",
                 btn_import: "📁 Import",
                 btn_export: "💾 Export",
@@ -906,6 +925,92 @@ $assetVersion = time();
             }
             return index - 1;
         }
+
+        function parseNumericValue(val) {
+            if (typeof val === 'number') return val;
+            if (val === null || val === undefined || val === '') return NaN;
+            if (typeof val !== 'string') val = String(val);
+            
+            val = val.trim();
+            if (val.startsWith('#')) return NaN;
+            
+            const isPercent = val.endsWith('%');
+            if (isPercent) val = val.slice(0, -1).trim();
+            
+            let isNegative = false;
+            if (val.startsWith('(') && val.endsWith(')')) {
+                isNegative = true;
+                val = val.slice(1, -1).trim();
+            } else if (val.includes('-')) {
+                isNegative = true;
+            }
+            
+            let clean = val.replace(/[^0-9.,]/g, '');
+            if (!clean) return NaN;
+            
+            if (clean.includes(',') && clean.includes('.')) {
+                if (clean.lastIndexOf(',') > clean.lastIndexOf('.')) {
+                    clean = clean.replace(/\./g, '').replace(',', '.');
+                } else {
+                    clean = clean.replace(/,/g, '');
+                }
+            } else if (clean.includes(',')) {
+                clean = clean.replace(',', '.');
+            } else if (clean.includes('.')) {
+                const parts = clean.split('.');
+                if (parts.length > 2) {
+                    clean = clean.replace(/\./g, '');
+                }
+            }
+            
+            let num = parseFloat(clean);
+            if (isNaN(num)) return NaN;
+            if (isNegative) num = -Math.abs(num);
+            if (isPercent) num = num / 100;
+            return num;
+        }
+        window.parseNumericValue = parseNumericValue;
+
+        function detectDataRange() {
+            const sheet = sheets[currentSheet];
+            if (!sheet || !sheet.data) return 'A1:B10';
+            
+            let minRow = Infinity, maxRow = -1;
+            let minCol = Infinity, maxCol = -1;
+            let headerMaxCol = -1;
+            
+            for (let c = 0; c < 26; c++) {
+                const id = `${getColName(c)}1`;
+                if (sheet.data[id] && sheet.data[id].value !== '') {
+                    headerMaxCol = c;
+                }
+            }
+
+            for (const [cellId, cellData] of Object.entries(sheet.data)) {
+                if (!cellData || (cellData.value === '' && cellData.display === '')) continue;
+                const match = cellId.match(/^([A-Z]+)(\d+)$/i);
+                if (!match) continue;
+                const colIdx = getColIndex(match[1].toUpperCase());
+                const rowIdx = parseInt(match[2], 10);
+                
+                if (headerMaxCol !== -1 && colIdx > headerMaxCol) continue;
+                
+                if (colIdx < minCol) minCol = colIdx;
+                if (colIdx > maxCol) maxCol = colIdx;
+                if (rowIdx < minRow) minRow = rowIdx;
+                if (rowIdx > maxRow) maxRow = rowIdx;
+            }
+            
+            if (minRow === Infinity) return 'A1:B10';
+            
+            const bottomVal = String(sheet.data[`A${maxRow}`]?.value || '').toUpperCase();
+            if (maxRow > minRow && (bottomVal.startsWith('TOTAL') || bottomVal.startsWith('SOMA') || bottomVal.startsWith('SALDO'))) {
+                maxRow = maxRow - 1;
+            }
+            
+            return `${getColName(minCol)}${minRow}:${getColName(maxCol)}${maxRow}`;
+        }
+        window.detectDataRange = detectDataRange;
         
         function createHeaders() {
             const headerRow = document.getElementById('headerRow');
@@ -990,8 +1095,8 @@ $assetVersion = time();
             cell.style.fontStyle = format.italic ? 'italic' : '';
             cell.style.textDecoration = format.underline ? 'underline' : (format.strike ? 'line-through' : '');
             cell.style.color = format.color || '';
-            if (format.backgroundColor) {
-                cell.style.backgroundColor = format.backgroundColor;
+            if (format.backgroundColor || format.bgColor) {
+                cell.style.backgroundColor = format.backgroundColor || format.bgColor;
             }
             cell.style.textAlign = format.textAlign || '';
             if (format.border) {
@@ -1003,7 +1108,7 @@ $assetVersion = time();
             const sheet = sheets[currentSheet];
             if (!sheet.conditionalFormats) return;
             
-            const numValue = parseFloat(value);
+            const numValue = parseNumericValue(value);
             
             sheet.conditionalFormats.forEach(cf => {
                 const cellCol = cell.dataset.col;
@@ -1444,21 +1549,30 @@ $assetVersion = time();
         
         function evaluateFormula(formula, currentCellId) {
             try {
-                let expr = formula.substring(1).toUpperCase();
+                let expr = formula.substring(1).toUpperCase().trim();
                 const sheet = sheets[currentSheet];
                 
                 const functions = {
-                    'SUM': (args) => args.flat().reduce((a, b) => a + (parseFloat(b) || 0), 0),
-                    'AVERAGE': (args) => { const flat = args.flat().filter(v => !isNaN(parseFloat(v))); return flat.reduce((a, b) => a + parseFloat(b), 0) / flat.length; },
-                    'COUNT': (args) => args.flat().filter(v => !isNaN(parseFloat(v))).length,
+                    'SUM': (args) => args.flat().reduce((a, b) => a + (parseNumericValue(b) || 0), 0),
+                    'AVERAGE': (args) => {
+                        const flat = args.flat().map(parseNumericValue).filter(v => !isNaN(v));
+                        return flat.length ? flat.reduce((a, b) => a + b, 0) / flat.length : 0;
+                    },
+                    'COUNT': (args) => args.flat().map(parseNumericValue).filter(v => !isNaN(v)).length,
                     'COUNTA': (args) => args.flat().filter(v => v !== '' && v !== null && v !== undefined).length,
-                    'MAX': (args) => Math.max(...args.flat().map(v => parseFloat(v) || -Infinity)),
-                    'MIN': (args) => Math.min(...args.flat().map(v => parseFloat(v) || Infinity)),
-                    'ABS': (args) => Math.abs(parseFloat(args[0]) || 0),
-                    'SQRT': (args) => Math.sqrt(parseFloat(args[0]) || 0),
-                    'POWER': (args) => Math.pow(parseFloat(args[0]) || 0, parseFloat(args[1]) || 1),
+                    'MAX': (args) => {
+                        const flat = args.flat().map(parseNumericValue).filter(v => !isNaN(v));
+                        return flat.length ? Math.max(...flat) : 0;
+                    },
+                    'MIN': (args) => {
+                        const flat = args.flat().map(parseNumericValue).filter(v => !isNaN(v));
+                        return flat.length ? Math.min(...flat) : 0;
+                    },
+                    'ABS': (args) => Math.abs(parseNumericValue(args[0]) || 0),
+                    'SQRT': (args) => Math.sqrt(parseNumericValue(args[0]) || 0),
+                    'POWER': (args) => Math.pow(parseNumericValue(args[0]) || 0, parseNumericValue(args[1]) || 1),
                     'ROUND': (args) => {
-                        const num = parseFloat(args[0]) || 0;
+                        const num = parseNumericValue(args[0]) || 0;
                         const decimals = parseInt(args[1]) || 0;
                         return Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
                     },
@@ -1482,8 +1596,9 @@ $assetVersion = time();
                         let sum = 0;
                         if (Array.isArray(range)) {
                             range.forEach((val, i) => {
+                                const sVal = Array.isArray(sumRange) ? sumRange[i] : sumRange;
                                 if (String(val).includes(String(criteria)) || val == criteria) {
-                                    sum += parseFloat(Array.isArray(sumRange) ? sumRange[i] : sumRange) || 0;
+                                    sum += parseNumericValue(sVal) || 0;
                                 }
                             });
                         }
@@ -1526,8 +1641,8 @@ $assetVersion = time();
                 functions['PROCV'] = functions['VLOOKUP'];
                 
                 // Parse function calls
-                const processFunctions = (expr) => {
-                    let result = expr;
+                const processFunctions = (expression) => {
+                    let result = expression;
                     let changed = true;
                     let iterations = 0;
                     
@@ -1536,7 +1651,8 @@ $assetVersion = time();
                         iterations++;
                         
                         for (const [funcName, funcImpl] of Object.entries(functions)) {
-                            const regex = new RegExp(`${funcName}\\(([^()]*?)\\)`, 'gi');
+                            const escaped = funcName.replace(/\./g, '\\.');
+                            const regex = new RegExp(`\\b${escaped}\\(([^()]*?)\\)`, 'gi');
                             result = result.replace(regex, (match, argsStr) => {
                                 changed = true;
                                 const args = parseArguments(argsStr);
@@ -1549,9 +1665,11 @@ $assetVersion = time();
                                     } else if (arg.startsWith('"') && arg.endsWith('"')) {
                                         return arg.slice(1, -1);
                                     }
-                                    return isNaN(parseFloat(arg)) ? arg : parseFloat(arg);
+                                    const pNum = parseNumericValue(arg);
+                                    return isNaN(pNum) ? arg : pNum;
                                 });
-                                return funcImpl(values);
+                                const res = funcImpl(values);
+                                return (typeof res === 'number' && res < 0) ? `(${res})` : res;
                             });
                         }
                     }
@@ -1563,14 +1681,26 @@ $assetVersion = time();
                 // Replace remaining cell references
                 expr = expr.replace(/\b([A-Z]+)(\d+)\b/gi, (match) => {
                     const value = getCellValue(match);
-                    return isNaN(parseFloat(value)) ? `"${value}"` : value;
+                    if (value === '#ERROR!') throw new Error('Ref error');
+                    if (value === '' || value === null || value === undefined) return 0;
+                    const num = parseNumericValue(value);
+                    if (!isNaN(num)) {
+                        return num < 0 ? `(${num})` : num;
+                    }
+                    return `"${value}"`;
                 });
                 
+                // Normalize signs and operators
+                expr = expr.replace(/--/g, '+')
+                           .replace(/\+\+/g, '+')
+                           .replace(/\+-/g, '-')
+                           .replace(/-\+/g, '-');
+
                 // Handle comparison operators
                 expr = expr.replace(/<>/g, '!==').replace(/(?<![<>!])=/g, '===');
                 
                 const result = Function('"use strict"; return (' + expr + ')')();
-                return result;
+                return typeof result === 'number' && !isFinite(result) ? '#DIV/0!' : result;
             } catch (e) {
                 console.error('Formula error:', e);
                 return '#ERROR!';
@@ -1608,7 +1738,9 @@ $assetVersion = time();
             const data = sheet.data[cellId.toUpperCase()];
             if (!data) return '';
             const val = data.value;
-            return isNaN(parseFloat(val)) ? val : parseFloat(val);
+            if (val === undefined || val === null || val === '') return '';
+            const num = parseNumericValue(val);
+            return isNaN(num) ? val : num;
         }
         
         function getRangeValues(range) {
@@ -1631,7 +1763,7 @@ $assetVersion = time();
             if (value === '' || value === null || value === undefined) return '';
             if (typeof value === 'string' && value.startsWith('#')) return value;
             
-            const num = parseFloat(value);
+            const num = parseNumericValue(value);
             if (isNaN(num)) return value;
             
             switch (format) {
@@ -2006,12 +2138,24 @@ $assetVersion = time();
         }
         
         // Sheet management
+        function getUniqueSheetName(requestedName, targetIndex = -1) {
+            let base = (requestedName || (currentLang === 'en' ? 'Sheet' : 'Planilha')).trim().substring(0, 25);
+            let name = base;
+            let counter = 2;
+            while (sheets.some((s, i) => i !== targetIndex && s.name.toLowerCase() === name.toLowerCase())) {
+                name = `${base} (${counter++})`.substring(0, 30);
+            }
+            return name;
+        }
+        window.getUniqueSheetName = getUniqueSheetName;
+
         function addSheet() {
             const newIndex = sheets.length;
             const t = excelI18n[currentLang] || excelI18n.pt;
             const baseName = currentLang === 'en' ? 'Sheet' : 'Planilha';
+            const uniqueName = getUniqueSheetName(`${baseName}${newIndex + 1}`);
             sheets.push({
-                name: `${baseName}${newIndex + 1}`,
+                name: uniqueName,
                 data: {},
                 formats: {},
                 comments: {},
@@ -2040,8 +2184,9 @@ $assetVersion = time();
             const t = excelI18n[currentLang] || excelI18n.pt;
             const newName = prompt(t.prompt_sheet_name, sheets[index].name);
             if (newName?.trim()) {
-                sheets[index].name = newName.trim();
+                sheets[index].name = getUniqueSheetName(newName.trim(), index);
                 renderSheetTabs();
+                saveToLocalStorage();
             }
         }
         
@@ -2235,14 +2380,14 @@ $assetVersion = time();
                 rows.push({
                     row: r,
                     value: sheet.data[cellId]?.value ?? '',
-                    numValue: parseFloat(sheet.data[cellId]?.value) || 0
+                    numValue: parseNumericValue(sheet.data[cellId]?.value) || 0
                 });
             }
             
             // Sort
             rows.sort((a, b) => {
-                const aNum = !isNaN(parseFloat(a.value));
-                const bNum = !isNaN(parseFloat(b.value));
+                const aNum = !isNaN(parseNumericValue(a.value));
+                const bNum = !isNaN(parseNumericValue(b.value));
                 
                 if (aNum && bNum) {
                     return ascending ? a.numValue - b.numValue : b.numValue - a.numValue;
@@ -2545,43 +2690,180 @@ $assetVersion = time();
         }
         
         // Chart
-        function showChartModal() {
+        function extractChartData(range) {
+            if (!range || !range.includes(':')) {
+                return { labels: [], datasets: [] };
+            }
+            const [start, end] = range.split(':');
+            const startMatch = start.trim().match(/^([A-Z]+)(\d+)$/i);
+            const endMatch = (end ? end.trim() : start.trim()).match(/^([A-Z]+)(\d+)$/i);
+            if (!startMatch || !endMatch) {
+                return { labels: [], datasets: [] };
+            }
+
+            const startCol = getColIndex(startMatch[1].toUpperCase());
+            const startRow = parseInt(startMatch[2], 10) - 1;
+            const endCol = getColIndex(endMatch[1].toUpperCase());
+            const endRow = parseInt(endMatch[2], 10) - 1;
+
+            const rMin = Math.min(startRow, endRow);
+            const rMax = Math.max(startRow, endRow);
+            const cMin = Math.min(startCol, endCol);
+            const cMax = Math.max(startCol, endCol);
+
+            const rows = [];
+            for (let r = rMin; r <= rMax; r++) {
+                const row = [];
+                for (let c = cMin; c <= cMax; c++) {
+                    const cellId = getColName(c) + (r + 1);
+                    row.push(getCellValue(cellId));
+                }
+                rows.push(row);
+            }
+
+            if (rows.length === 0) return { labels: [], datasets: [] };
+
+            let hasHeader = false;
+            if (rows.length > 1) {
+                const firstRowNumeric = rows[0].some(v => !isNaN(parseNumericValue(v)));
+                const secondRowNumeric = rows[1].some(v => !isNaN(parseNumericValue(v)));
+                if (!firstRowNumeric && secondRowNumeric) {
+                    hasHeader = true;
+                }
+            }
+
+            const headerRow = hasHeader ? rows[0] : null;
+            const dataRows = hasHeader ? rows.slice(1) : rows;
+
+            const filteredRows = dataRows.filter(row => {
+                const firstCell = String(row[0] || '').trim().toUpperCase();
+                return !firstCell.startsWith('TOTAL') && !firstCell.startsWith('SOMA') && !firstCell.startsWith('SALDO');
+            });
+
+            const activeRows = filteredRows.length > 0 ? filteredRows : dataRows;
+
+            let labels = [];
+            let datasets = [];
+
+            if (cMin === cMax) {
+                const colVals = activeRows.map(r => r[0]);
+                const areNumbers = colVals.some(v => !isNaN(parseNumericValue(v)));
+                
+                if (areNumbers) {
+                    if (cMin > 0) {
+                        labels = activeRows.map((_, idx) => {
+                            const leftCell = getCellValue(getColName(cMin - 1) + (rMin + (hasHeader ? 1 : 0) + idx + 1));
+                            return leftCell ? String(leftCell) : `Item ${idx + 1}`;
+                        });
+                    } else {
+                        labels = colVals.map((_, i) => `Item ${i + 1}`);
+                    }
+                    datasets.push({
+                        label: headerRow ? String(headerRow[0]) : (document.getElementById('chartTitle')?.value || 'Valores'),
+                        data: colVals.map(v => {
+                            const n = parseNumericValue(v);
+                            return isNaN(n) ? 0 : Math.abs(n);
+                        })
+                    });
+                } else {
+                    labels = colVals.map(String);
+                    datasets.push({
+                        label: 'Contagem',
+                        data: colVals.map(() => 1)
+                    });
+                }
+            } else {
+                let labelColIdx = -1;
+                let numericColIndices = [];
+
+                for (let c = 0; c < (cMax - cMin + 1); c++) {
+                    const colVals = activeRows.map(r => r[c]);
+                    const numCount = colVals.filter(v => !isNaN(parseNumericValue(v))).length;
+                    if (numCount > colVals.length / 2) {
+                        numericColIndices.push(c);
+                    } else if (labelColIdx === -1) {
+                        labelColIdx = c;
+                    }
+                }
+
+                if (labelColIdx === -1) labelColIdx = 0;
+                labels = activeRows.map(r => String(r[labelColIdx] || ''));
+
+                if (numericColIndices.length === 0) {
+                    numericColIndices = [cMax - cMin];
+                }
+
+                for (const numCol of numericColIndices) {
+                    const colName = headerRow ? String(headerRow[numCol]) : `Série ${numCol + 1}`;
+                    const data = activeRows.map(r => {
+                        const val = parseNumericValue(r[numCol]);
+                        return isNaN(val) ? 0 : Math.abs(val);
+                    });
+                    datasets.push({
+                        label: colName,
+                        data: data
+                    });
+                }
+            }
+
+            return { labels, datasets };
+        }
+
+        function showChartModal(customRange = null, customType = null, customTitle = null) {
             const t = excelI18n[currentLang] || excelI18n.pt;
-            const range = selectedRange.start && selectedRange.end ? 
-                `${selectedRange.start.dataset.id}:${selectedRange.end.dataset.id}` : 'A1:B10';
+            
+            let range = customRange;
+            if (!range) {
+                if (selectedRange.start && selectedRange.end && selectedRange.start !== selectedRange.end) {
+                    range = `${selectedRange.start.dataset.id}:${selectedRange.end.dataset.id}`;
+                } else {
+                    range = detectDataRange();
+                }
+            }
+            
+            const chartType = customType || 'bar';
+            const chartTitle = customTitle || t.chart_default_title;
             
             const html = `
                 <div class="modal-overlay" onclick="closeModal()"></div>
-                <div class="modal" style="min-width: 600px;">
-                    <h3 class="text-lg font-bold mb-4">${t.chart_title_modal}</h3>
+                <div class="modal" style="min-width: 650px; max-width: 90vw;">
+                    <div class="flex items-center justify-between mb-4 border-b pb-3">
+                        <h3 class="text-lg font-bold">${t.chart_title_modal}</h3>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer">&times;</button>
+                    </div>
                     <div class="flex gap-4">
                         <div class="w-1/3 space-y-3">
                             <div>
-                                <label class="block text-sm mb-1">${t.chart_data_range}</label>
-                                <input type="text" id="chartRange" value="${range}" class="w-full border rounded px-2 py-1">
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">${t.chart_data_range}</label>
+                                <input type="text" id="chartRange" value="${range}" class="w-full border rounded px-2.5 py-1.5 text-xs font-mono" oninput="previewChart()">
                             </div>
                             <div>
-                                <label class="block text-sm mb-1">${t.chart_type}</label>
-                                <select id="chartType" class="w-full border rounded px-2 py-1" onchange="previewChart()">
-                                    <option value="bar">${t.chart_bar}</option>
-                                    <option value="line">${t.chart_line}</option>
-                                    <option value="pie">${t.chart_pie}</option>
-                                    <option value="doughnut">${t.chart_doughnut}</option>
-                                    <option value="radar">${t.chart_radar}</option>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">${t.chart_type}</label>
+                                <select id="chartType" class="w-full border rounded px-2.5 py-1.5 text-xs" onchange="previewChart()">
+                                    <option value="bar" ${chartType === 'bar' ? 'selected' : ''}>${t.chart_bar}</option>
+                                    <option value="line" ${chartType === 'line' ? 'selected' : ''}>${t.chart_line}</option>
+                                    <option value="pie" ${chartType === 'pie' ? 'selected' : ''}>${t.chart_pie}</option>
+                                    <option value="doughnut" ${chartType === 'doughnut' ? 'selected' : ''}>${t.chart_doughnut}</option>
+                                    <option value="radar" ${chartType === 'radar' ? 'selected' : ''}>${t.chart_radar}</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm mb-1">${t.chart_input_title}</label>
-                                <input type="text" id="chartTitle" value="${t.chart_default_title}" class="w-full border rounded px-2 py-1" onchange="previewChart()">
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">${t.chart_input_title}</label>
+                                <input type="text" id="chartTitle" value="${chartTitle}" class="w-full border rounded px-2.5 py-1.5 text-xs" oninput="previewChart()">
+                            </div>
+                            <div class="pt-2">
+                                <button type="button" onclick="previewChart()" class="w-full py-1.5 px-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-medium rounded transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <span>🔄</span> <span>Atualizar Prévia</span>
+                                </button>
                             </div>
                         </div>
-                        <div class="w-2/3">
-                            <canvas id="chartPreview" width="350" height="250"></canvas>
+                        <div class="w-2/3 border rounded-lg p-2 bg-gray-50 dark:bg-gray-800 flex items-center justify-center" style="min-height: 280px; position: relative;">
+                            <canvas id="chartPreview"></canvas>
                         </div>
                     </div>
-                    <div class="mt-4 flex gap-2 justify-end">
-                        <button onclick="closeModal()" class="px-4 py-2 border rounded">${t.cf_cancel}</button>
-                        <button onclick="downloadChart()" class="px-4 py-2 bg-blue-600 text-white rounded">${t.chart_download}</button>
+                    <div class="mt-4 flex gap-2 justify-end border-t pt-3">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 border rounded text-xs font-medium cursor-pointer">${t.cf_cancel}</button>
+                        <button type="button" onclick="downloadChart()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold shadow transition cursor-pointer">${t.chart_download}</button>
                     </div>
                 </div>
             `;
@@ -2591,46 +2873,86 @@ $assetVersion = time();
             modal.innerHTML = html;
             document.body.appendChild(modal);
             
-            setTimeout(previewChart, 100);
+            setTimeout(previewChart, 60);
         }
+        window.showChartModal = showChartModal;
         
         let currentChart = null;
         
         function previewChart() {
-            const range = document.getElementById('chartRange').value;
-            const type = document.getElementById('chartType').value;
-            const title = document.getElementById('chartTitle').value;
-            
-            const values = getRangeValues(range);
-            const labels = values.map((_, i) => `Item ${i + 1}`);
-            
-            const ctx = document.getElementById('chartPreview').getContext('2d');
-            
-            if (currentChart) currentChart.destroy();
-            
-            const colors = [
-                '#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0',
-                '#00BCD4', '#FFEB3B', '#795548', '#607D8B', '#F44336'
+            const rangeInput = document.getElementById('chartRange');
+            const typeInput = document.getElementById('chartType');
+            const titleInput = document.getElementById('chartTitle');
+            if (!rangeInput || !typeInput || !titleInput) return;
+
+            const range = rangeInput.value.trim();
+            const type = typeInput.value;
+            const title = titleInput.value.trim();
+
+            const { labels, datasets } = extractChartData(range);
+            if (!labels.length || !datasets.length) return;
+
+            const canvas = document.getElementById('chartPreview');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            if (currentChart) {
+                currentChart.destroy();
+                currentChart = null;
+            }
+
+            const palette = [
+                '#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6',
+                '#06b6d4', '#f97316', '#64748b', '#14b8a6', '#ef4444'
             ];
-            
+
+            const chartDatasets = datasets.map((ds, dsIdx) => {
+                const isMultiSlices = (type === 'pie' || type === 'doughnut' || datasets.length === 1);
+                const bgColors = isMultiSlices
+                    ? labels.map((_, i) => palette[i % palette.length])
+                    : palette[dsIdx % palette.length];
+                const borderColors = isMultiSlices
+                    ? labels.map((_, i) => palette[i % palette.length])
+                    : palette[dsIdx % palette.length];
+
+                return {
+                    label: ds.label || title || 'Dados',
+                    data: ds.data,
+                    backgroundColor: type === 'line' ? 'rgba(59, 130, 246, 0.1)' : bgColors,
+                    borderColor: type === 'line' ? palette[dsIdx % palette.length] : borderColors,
+                    borderWidth: 2,
+                    fill: type === 'line' ? false : true,
+                    tension: 0.3
+                };
+            });
+
             currentChart = new Chart(ctx, {
                 type: type,
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: title,
-                        data: values.map(v => parseFloat(v) || 0),
-                        backgroundColor: colors,
-                        borderColor: type === 'line' ? '#2196F3' : colors,
-                        borderWidth: 2,
-                        fill: type === 'line' ? false : true
-                    }]
+                    datasets: chartDatasets
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
-                        title: { display: true, text: title },
-                        legend: { display: type === 'pie' || type === 'doughnut' }
+                        title: { display: !!title, text: title, font: { size: 14, weight: 'bold' } },
+                        legend: { display: type === 'pie' || type === 'doughnut' || datasets.length > 1 },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let lbl = context.dataset.label || '';
+                                    if (lbl) lbl += ': ';
+                                    const val = context.raw;
+                                    if (typeof val === 'number') {
+                                        lbl += 'R$ ' + val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    } else {
+                                        lbl += val;
+                                    }
+                                    return lbl;
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -2720,27 +3042,174 @@ $assetVersion = time();
             updateStatus(t.status_saved);
         }
         
-        function loadFromLocalStorage(silent = false) {
-            const saved = localStorage.getItem('excelCloneData');
-            if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    document.getElementById('fileName').value = data.fileName || 'Pasta1';
-                    sheets = data.sheets.map(s => ({
-                        ...s,
-                        hiddenRows: new Set(s.hiddenRows || []),
-                        hiddenCols: new Set(s.hiddenCols || [])
-                    }));
-                    if (data.darkMode) toggleDarkMode();
-                    if (!silent) {
-                        renderSheetTabs();
-                        createHeaders();
-                        createCells();
-                        const t = excelI18n[currentLang] || excelI18n.pt;
-                        updateStatus(t.status_loaded);
+        function normalizeSheetData(rawSheet) {
+            if (!rawSheet) return null;
+            const normalizedData = {};
+            const normalizedFormats = {};
+
+            // 1. If rawSheet has 'rows' (2D array, e.g. from officeclone_import_data)
+            if (Array.isArray(rawSheet.rows)) {
+                rawSheet.rows.forEach((rowArr, rIdx) => {
+                    if (Array.isArray(rowArr)) {
+                        rowArr.forEach((val, cIdx) => {
+                            if (val !== undefined && val !== null && val !== '') {
+                                const cellId = `${getColName(cIdx)}${rIdx + 1}`;
+                                normalizedData[cellId] = {
+                                    value: String(val),
+                                    display: String(val)
+                                };
+                            }
+                        });
                     }
+                });
+            }
+
+            // 2. If rawSheet has 'data' or 'cells' as an object
+            const sourceCells = rawSheet.data || rawSheet.cells || {};
+            for (const [key, rawVal] of Object.entries(sourceCells)) {
+                let cellId = key;
+                // If key is 'row,col' format (e.g. '0,0' or '5,1')
+                if (/^\d+,\d+$/.test(key)) {
+                    const [rStr, cStr] = key.split(',');
+                    const r = parseInt(rStr, 10);
+                    const c = parseInt(cStr, 10);
+                    cellId = `${getColName(c)}${r + 1}`;
+                } else {
+                    cellId = key.toUpperCase();
+                }
+
+                if (rawVal !== undefined && rawVal !== null) {
+                    if (typeof rawVal === 'object' && rawVal !== null && rawVal.value !== undefined) {
+                        normalizedData[cellId] = {
+                            value: rawVal.value,
+                            display: rawVal.display !== undefined ? rawVal.display : String(rawVal.value),
+                            formula: rawVal.formula || undefined
+                        };
+                    } else {
+                        normalizedData[cellId] = {
+                            value: String(rawVal),
+                            display: String(rawVal)
+                        };
+                    }
+                }
+            }
+
+            // 3. Formats normalization
+            const sourceFormats = rawSheet.formats || {};
+            for (const [key, rawFormat] of Object.entries(sourceFormats)) {
+                let cellId = key;
+                if (/^\d+,\d+$/.test(key)) {
+                    const [rStr, cStr] = key.split(',');
+                    const r = parseInt(rStr, 10);
+                    const c = parseInt(cStr, 10);
+                    cellId = `${getColName(c)}${r + 1}`;
+                } else {
+                    cellId = key.toUpperCase();
+                }
+
+                normalizedFormats[cellId] = {
+                    ...rawFormat,
+                    backgroundColor: rawFormat.backgroundColor || rawFormat.bgColor || undefined
+                };
+            }
+
+            return {
+                name: rawSheet.name || 'Planilha1',
+                data: normalizedData,
+                formats: normalizedFormats,
+                comments: rawSheet.comments || {},
+                colWidths: rawSheet.colWidths || {},
+                rowHeights: rawSheet.rowHeights || {},
+                hiddenRows: new Set(rawSheet.hiddenRows || []),
+                hiddenCols: new Set(rawSheet.hiddenCols || []),
+                frozenRow: rawSheet.frozenRow || 0,
+                frozenCol: rawSheet.frozenCol || 0,
+                conditionalFormats: rawSheet.conditionalFormats || [],
+                filters: rawSheet.filters || {}
+            };
+        }
+
+        function loadFromLocalStorage(silent = false) {
+            let importedData = null;
+
+            // Check incoming import payloads from ECALC Suite tools
+            const incomingData = localStorage.getItem('officeclone_import_data');
+            const incomingPayload = localStorage.getItem('officeclone_import_payload');
+            const saved = localStorage.getItem('excelCloneData');
+
+            if (incomingData) {
+                try {
+                    const parsed = JSON.parse(incomingData);
+                    const title = parsed.filename ? parsed.filename.replace(/\.csv$/i, '') : 'Importação ECALC';
+                    const sheetObj = normalizeSheetData(parsed);
+                    if (sheetObj) {
+                        importedData = {
+                            fileName: title,
+                            sheets: [sheetObj]
+                        };
+                    }
+                    localStorage.removeItem('officeclone_import_data');
                 } catch (e) {
-                    console.error('Error loading:', e);
+                    console.error('Error importing officeclone_import_data:', e);
+                }
+            } else if (incomingPayload) {
+                try {
+                    const parsed = JSON.parse(incomingPayload);
+                    const title = parsed.title || 'Importação ECALC';
+                    const sheetObj = normalizeSheetData(parsed);
+                    if (sheetObj) {
+                        importedData = {
+                            fileName: title,
+                            sheets: [sheetObj]
+                        };
+                    }
+                    localStorage.removeItem('officeclone_import_payload');
+                } catch (e) {
+                    console.error('Error importing officeclone_import_payload:', e);
+                }
+            } else if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    importedData = {
+                        fileName: parsed.fileName || 'Pasta1',
+                        darkMode: parsed.darkMode,
+                        sheets: (parsed.sheets && parsed.sheets.length > 0)
+                            ? parsed.sheets.map(s => normalizeSheetData(s)).filter(Boolean)
+                            : [normalizeSheetData(parsed)].filter(Boolean)
+                    };
+                } catch (e) {
+                    console.error('Error loading excelCloneData:', e);
+                }
+            }
+
+            if (importedData && importedData.sheets && importedData.sheets.length > 0) {
+                if (importedData.fileName) {
+                    const fnEl = document.getElementById('fileName');
+                    if (fnEl) fnEl.value = importedData.fileName;
+                    document.title = `${importedData.fileName} - ExcelClone`;
+                }
+                sheets = importedData.sheets;
+                currentSheet = 0;
+                if (incomingData || incomingPayload) {
+                    try {
+                        localStorage.setItem('excelCloneData', JSON.stringify({
+                            fileName: importedData.fileName,
+                            sheets: importedData.sheets.map(s => ({
+                                ...s,
+                                hiddenRows: Array.from(s.hiddenRows || []),
+                                hiddenCols: Array.from(s.hiddenCols || [])
+                            })),
+                            darkMode: darkMode
+                        }));
+                    } catch (e) {}
+                }
+                if (importedData.darkMode && !darkMode) toggleDarkMode();
+                if (!silent) {
+                    renderSheetTabs();
+                    createHeaders();
+                    createCells();
+                    const t = excelI18n[currentLang] || excelI18n.pt;
+                    updateStatus(t.status_loaded || 'Planilha carregada');
                 }
             }
         }
@@ -2793,14 +3262,15 @@ $assetVersion = time();
             if (cells.length > 1) {
                 const values = cells.map(c => {
                     const data = sheets[currentSheet].data[c.dataset.id];
-                    return parseFloat(data?.value);
+                    return parseNumericValue(data?.value);
                 }).filter(v => !isNaN(v));
                 
                 if (values.length > 0) {
                     const sum = values.reduce((a, b) => a + b, 0);
                     const avg = sum / values.length;
+                    const fmtNum = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                     document.getElementById('statusBar').textContent = 
-                        `${t.stat_avg}: ${avg.toFixed(2)} | ${t.stat_count}: ${values.length} | ${t.stat_sum}: ${sum.toFixed(2)}`;
+                        `${t.stat_avg}: ${fmtNum(avg)} | ${t.stat_count}: ${values.length} | ${t.stat_sum}: ${fmtNum(sum)}`;
                     return;
                 }
             }
@@ -2810,6 +3280,212 @@ $assetVersion = time();
         // Initialize
         init();
     </script>
+    <!-- ==========================================================================
+         Modais do Assistente de Inteligência Artificial (ExcelClone)
+         ========================================================================== -->
+
+    <!-- Modal 1: Assistente de Fórmulas com IA -->
+    <div id="aiFormulaModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-xl overflow-hidden animate-scaleIn">
+            <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 flex items-center justify-between text-white">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">✨</span>
+                    <div>
+                        <h3 class="font-bold text-base leading-tight">Assistente de Fórmulas com IA</h3>
+                        <p class="text-xs text-emerald-100">Gere fórmulas inteligentes por linguagem natural para a célula <span id="aiFormulaTargetCell" class="font-extrabold underline">A1</span></p>
+                    </div>
+                </div>
+                <button onclick="ExcelAi.closeFormulaModal()" class="text-white/80 hover:text-white text-xl font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <!-- Sugestões Rápidas -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">Sugestões de Cálculo:</label>
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <button type="button" onclick="ExcelAi.setFormulaChip('Somar os valores da coluna se a coluna de status for Pago')" class="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer">➕ Somar se Pago (SOMASES)</button>
+                        <button type="button" onclick="ExcelAi.setFormulaChip('Média dos valores apenas se for maior que zero')" class="px-2.5 py-1 rounded-full bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer">📊 Média Condicional</button>
+                        <button type="button" onclick="ExcelAi.setFormulaChip('Procurar o código na tabela de preços e retornar o valor')" class="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 transition-colors cursor-pointer">🔍 Buscar Valor (PROCV)</button>
+                        <button type="button" onclick="ExcelAi.setFormulaChip('Se o valor for maior que 1000 aplicar 10% de desconto senão 5%')" class="px-2.5 py-1 rounded-full bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 transition-colors cursor-pointer">🔀 Condicional SE/IF</button>
+                    </div>
+                </div>
+
+                <!-- Input do Prompt -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">O que você deseja calcular nesta célula?</label>
+                    <textarea id="aiFormulaPromptInput" rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-gray-700 dark:text-white resize-none" placeholder="Ex: Somar a coluna C quando a coluna B for 'Aprovado' e a data for deste ano..."></textarea>
+                </div>
+
+                <!-- Loader -->
+                <div id="aiFormulaLoader" class="hidden flex-col items-center justify-center p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-300 dark:border-emerald-700">
+                    <div class="w-8 h-8 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-2"></div>
+                    <span class="text-xs font-bold text-emerald-800 dark:text-emerald-200">Consultando IA e gerando fórmula exata...</span>
+                </div>
+
+                <!-- Box de Resultado -->
+                <div id="aiFormulaResultBox" class="hidden space-y-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-gray-500 uppercase">Fórmula Gerada:</span>
+                        <span class="text-xs text-emerald-600 font-semibold">1 Crédito 4U</span>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-emerald-400 font-mono text-base font-extrabold text-emerald-700 dark:text-emerald-300 select-all" id="aiFormulaOutput">
+                        =SOMA()
+                    </div>
+                    <p class="text-xs text-gray-600 dark:text-gray-400" id="aiFormulaExplanation"></p>
+                    <button type="button" onclick="ExcelAi.applyFormulaToCell()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                        <span>✓</span> <span>Inserir Fórmula na Célula</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-900 px-6 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700">
+                <button type="button" onclick="ExcelAi.closeFormulaModal()" class="px-4 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 font-semibold cursor-pointer">Cancelar</button>
+                <button type="button" onclick="ExcelAi.runGenerateFormula()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-md transition-all text-xs flex items-center gap-1.5 cursor-pointer">
+                    <span>⚡</span> <span>Gerar com IA</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Gerador de Planilhas por Prompt -->
+    <div id="aiSheetModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-xl overflow-hidden animate-scaleIn">
+            <div class="bg-gradient-to-r from-green-700 to-emerald-600 px-6 py-4 flex items-center justify-between text-white">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">🪄</span>
+                    <div>
+                        <h3 class="font-bold text-base leading-tight">Gerador de Planilhas por Prompt com IA</h3>
+                        <p class="text-xs text-green-100">Crie tabelas completas com colunas, dados e fórmulas reais prontas</p>
+                    </div>
+                </div>
+                <button onclick="ExcelAi.closeGenerateSheetModal()" class="text-white/80 hover:text-white text-xl font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <!-- Sugestões Rápidas -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                        <span data-lang="pt">Modelos Prontos por IA:</span>
+                        <span data-lang="en">Ready AI Templates:</span>
+                    </label>
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <!-- PT Chips -->
+                        <div data-lang="pt" class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="ExcelAi.setSheetChip('Fluxo de Caixa Mensal para pequena empresa, com Entradas, Custos Fixos, Variáveis, Saldo e Margem')" class="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer">💰 Fluxo de Caixa Mensal</button>
+                            <button type="button" onclick="ExcelAi.setSheetChip('Controle de Estoque de Loja com Código, Produto, Qtd Mínima, Qtd Atual, Preço de Custo e Total')" class="px-2.5 py-1 rounded-full bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer">📦 Controle de Estoque</button>
+                            <button type="button" onclick="ExcelAi.setSheetChip('Orçamento de Reforma Residencial com Serviço, Fornecedor, Metragem, Valor Unitário e Subtotal')" class="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 transition-colors cursor-pointer">🔨 Orçamento de Reforma</button>
+                            <button type="button" onclick="ExcelAi.setSheetChip('Quadro de Vendas da Equipe com Vendedor, Meta, Realizado, Percentual Atingido e Comissão')" class="px-2.5 py-1 rounded-full bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 transition-colors cursor-pointer">🎯 Vendas & Comissões</button>
+                        </div>
+                        <!-- EN Chips -->
+                        <div data-lang="en" class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="ExcelAi.setSheetChip('Monthly Cash Flow for a SaaS startup with Inflows, Fixed Costs, Variable Expenses, Net Burn, Balance and Runway')" class="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer">💰 SaaS Monthly Cash Flow</button>
+                            <button type="button" onclick="ExcelAi.setSheetChip('Store Inventory Tracking with SKU, Product Name, Reorder Level, In-Stock, Unit Cost and Total Valuation')" class="px-2.5 py-1 rounded-full bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 transition-colors cursor-pointer">📦 Inventory Tracking</button>
+                            <button type="button" onclick="ExcelAi.setSheetChip('Quarterly Marketing Budget with Channel, Allocated Spend, Cost Per Lead, Conversions and Projected ROI')" class="px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 transition-colors cursor-pointer">📊 Marketing Budget & ROI</button>
+                            <button type="button" onclick="ExcelAi.setSheetChip('Sales Pipeline and Commissions with Sales Rep, Target Quota, Closed Deals, Attainment Rate and Commission Payout')" class="px-2.5 py-1 rounded-full bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/60 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 transition-colors cursor-pointer">🎯 Sales & Commissions</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input do Prompt -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                        <span data-lang="pt">Qual planilha você deseja criar?</span>
+                        <span data-lang="en">What spreadsheet would you like to create?</span>
+                    </label>
+                    <textarea id="aiSheetPromptInput" rows="3" class="w-full border border-gray-300 dark:border-gray-600 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white resize-none" placeholder="Ex: Tabela de despesas mensais familiares dividida por categorias com linha de soma no final..."></textarea>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <label class="text-xs font-bold text-gray-600 dark:text-gray-400">Onde inserir:</label>
+                    <select id="aiSheetTargetMode" class="text-xs border rounded-lg px-2.5 py-1.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="new">Criar em Nova Aba (Recomendado)</option>
+                        <option value="current">Preencher na Planilha Atual</option>
+                    </select>
+                </div>
+
+                <!-- Loader -->
+                <div id="aiSheetLoader" class="hidden flex-col items-center justify-center p-6 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-300 dark:border-emerald-700">
+                    <div class="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-3"></div>
+                    <span class="text-sm font-bold text-emerald-800 dark:text-emerald-200">Construindo tabela, dados e fórmulas com IA...</span>
+                    <span class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Isso leva apenas alguns segundos</span>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-900 px-6 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700">
+                <button type="button" onclick="ExcelAi.closeGenerateSheetModal()" class="px-4 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 font-semibold cursor-pointer">Cancelar</button>
+                <button type="button" onclick="ExcelAi.runGenerateSheet()" class="px-5 py-2 bg-green-700 hover:bg-green-800 text-white font-bold rounded-lg shadow-md transition-all text-xs flex items-center gap-1.5 cursor-pointer">
+                    <span>🚀</span> <span>Gerar Planilha com IA</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Analista de Dados & Insights IA -->
+    <div id="aiAnalyzeModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-xl overflow-hidden animate-scaleIn">
+            <div class="bg-gradient-to-r from-teal-700 to-cyan-600 px-6 py-4 flex items-center justify-between text-white">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">💡</span>
+                    <div>
+                        <h3 class="font-bold text-base leading-tight">Analista de Dados & Insights com IA</h3>
+                        <p class="text-xs text-teal-100">Diagnóstico executivo, tendências e recomendação de gráficos</p>
+                    </div>
+                </div>
+                <button onclick="ExcelAi.closeAnalyzeModal()" class="text-white/80 hover:text-white text-xl font-bold p-1 cursor-pointer">✕</button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <p id="aiAnalyzeDataCount" class="text-xs font-semibold text-gray-600 dark:text-gray-400"></p>
+
+                <!-- Loader -->
+                <div id="aiAnalyzeLoader" class="hidden flex-col items-center justify-center p-6 bg-teal-50 dark:bg-teal-950/30 rounded-xl border border-teal-300 dark:border-teal-700">
+                    <div class="w-10 h-10 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin mb-3"></div>
+                    <span class="text-sm font-bold text-teal-800 dark:text-teal-200">Processando métricas e gerando diagnóstico com IA...</span>
+                </div>
+
+                <!-- Box de Resultados -->
+                <div id="aiAnalyzeResultBox" class="hidden space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+                    <!-- Resumo Executivo -->
+                    <div class="bg-teal-50 dark:bg-teal-950/30 p-3.5 rounded-xl border border-teal-200 dark:border-teal-800">
+                        <span class="text-xs font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300 block mb-1">Resumo dos Dados:</span>
+                        <p id="aiAnalyzeSummary" class="text-xs text-gray-800 dark:text-gray-200 leading-relaxed"></p>
+                    </div>
+
+                    <!-- Principais Insights -->
+                    <div>
+                        <span class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 block mb-1.5">Principais Insights & Destaques:</span>
+                        <ul id="aiAnalyzeInsightsList" class="space-y-1.5 text-xs text-gray-700 dark:text-gray-300"></ul>
+                    </div>
+
+                    <!-- Alertas / Anomalias -->
+                    <div id="aiAnalyzeAnomaliesBox" class="hidden bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-800">
+                        <span class="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 block mb-1">⚠️ Atenção aos Dados:</span>
+                        <ul id="aiAnalyzeAnomaliesList" class="space-y-1 text-xs"></ul>
+                    </div>
+
+                    <!-- Gráfico Recomendado -->
+                    <div id="aiAnalyzeChartRecBox" class="hidden bg-blue-50 dark:bg-blue-950/30 p-3.5 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 block">📊 Gráfico Recomendado:</span>
+                            <span id="aiAnalyzeChartTitle" class="text-xs font-extrabold text-blue-900 dark:text-blue-100 block"></span>
+                            <p id="aiAnalyzeChartReason" class="text-[11px] text-blue-700 dark:text-blue-300 mt-0.5"></p>
+                        </div>
+                        <button type="button" onclick="ExcelAi.openRecommendedChart()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow transition-all cursor-pointer">
+                            Abrir Gráficos
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-900 px-6 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-700">
+                <button type="button" onclick="ExcelAi.closeAnalyzeModal()" class="px-4 py-1.5 text-xs text-gray-600 dark:text-gray-300 hover:text-gray-900 font-semibold cursor-pointer">Fechar</button>
+                <button type="button" onclick="ExcelAi.runDataAnalysis()" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg shadow-md transition-all text-xs flex items-center gap-1.5 cursor-pointer">
+                    <span>🔍</span> <span>Executar Análise</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <footer class="footer-clean py-8 text-center text-gray-500/50">
         <p class="text-[10px] uppercase tracking-[0.2em] opacity-50" data-i18n="footer_rights">&copy; 2026 4U.IA.BR - Todos os direitos reservados</p>
     </footer>
